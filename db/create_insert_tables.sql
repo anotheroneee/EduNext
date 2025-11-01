@@ -48,6 +48,17 @@ CREATE TABLE usersprogress (
 	FOREIGN KEY (lesson_id) REFERENCES lessons(id) ON DELETE CASCADE
 );
 
+CREATE TABLE personal_access_tokens (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    token VARCHAR(255) NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    expires_at TIMESTAMPTZ,
+
+	FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
 --Наполнение таблиц с курсами и уроками
 INSERT INTO courses (title, description, price) VALUES
 ('Python для начинающих', 'Полный курс по основам Python программирования: переменные, условия и циклы, объектно-

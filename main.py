@@ -2,10 +2,13 @@ import os
 from dotenv import load_dotenv
 from fastapi import FastAPI
 import uvicorn
+from app.router.user import router
 
 load_dotenv()
 
 app = FastAPI()
+
+app.include_router(router)
 
 @app.get("/")
 async def health_check():

@@ -55,9 +55,10 @@ def setup_postgres():
 DATABASE_URL=postgresql://{db_user}:{db_password}@localhost:5432/{db_name}
 
 # Security
-SECRET_KEY=your-super-secret-key-change-in-production-32-chars-minimum
+SECRET_KEY= ->> https://secretkeygen.vercel.app/ <<-
 ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=30
+ACCESS_TOKEN_EXPIRE_MINUTES=4320
+MAX_COUNT_ACCESS_TOKENS=3
 
 # Project
 PROJECT_NAME=edunext
