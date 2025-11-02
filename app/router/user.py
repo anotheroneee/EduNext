@@ -1,12 +1,15 @@
 from datetime import datetime, timedelta
-from fastapi import APIRouter, HTTPException
-from app.models import LoginRequest, RegisterRequest
+import secrets
+from fastapi import APIRouter, HTTPException, status
+from app.models import LoginRequest, LogoutRequest, RegisterRequest
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 import os
 from dotenv import load_dotenv
 import bcrypt
 from jose import jwt
+
+from app.utils import check_token_expiry, hash_token, is_existing_token
 
 load_dotenv()
 
@@ -27,7 +30,12 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
 
 def create_jwt_token(user_id: str) -> str:
-    return jwt.encode({"sub": user_id}, SECRET_KEY, algorithm=ALGORITHM)
+    jti = secrets.token_urlsafe(16)
+    return jwt.encode(
+        {"sub": user_id, "jti": jti},
+        SECRET_KEY, 
+        algorithm=ALGORITHM
+    )
 
 router = APIRouter(prefix="/api")
 
@@ -123,7 +131,7 @@ def login(request: LoginRequest):
             """),
             {
                 "user_id": user.id,
-                "token": token,
+                "token": hash_token(token),
                 "expires_at": expires_at
             }
         )
@@ -144,3 +152,30 @@ def login(request: LoginRequest):
         raise HTTPException(status_code=500, detail=f"Ошибка сервера: {str(e)}")
     finally:
         db.close()
+
+# Конец сессии
+@router.delete("/logout")
+def logout(request: LogoutRequest):
+    db = SessionLocal()
+    check_token_expiry(db, request.token)
+
+    if not is_existing_token(db, request.token):
+            raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Токен не найден"
+        )
+    
+    try:
+        db.execute(
+            text("DELETE FROM personal_access_tokens WHERE token = :token"),
+            {"token": hash_token(request.token)}
+        )
+        db.commit()
+        return {"out_token": "success"}
+    
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        db.close()
+    
