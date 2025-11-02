@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 import secrets
 from fastapi import APIRouter, HTTPException, status
-from app.models import LoginRequest, LogoutRequest, RegisterRequest
+from app.models import LoginRequest, TokenRequest, RegisterRequest
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 import os
@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 import bcrypt
 from jose import jwt
 
-from app.utils import check_token_expiry, hash_token, is_existing_token
+from app.utils import is_token_expiry, hash_token, is_existing_token
 
 load_dotenv()
 
@@ -37,10 +37,10 @@ def create_jwt_token(user_id: str) -> str:
         algorithm=ALGORITHM
     )
 
-router = APIRouter(prefix="/api")
+user_router = APIRouter(prefix="/api/user")
 
 # Регистрация
-@router.post("/register")
+@user_router.post("/register")
 def register(request: RegisterRequest):
     db = SessionLocal()
     try:
@@ -80,7 +80,7 @@ def register(request: RegisterRequest):
         db.close()
 
 # Авторизация
-@router.post("/login")
+@user_router.post("/login")
 def login(request: LoginRequest):
     db = SessionLocal()
     try:
@@ -154,10 +154,10 @@ def login(request: LoginRequest):
         db.close()
 
 # Конец сессии
-@router.delete("/logout")
-def logout(request: LogoutRequest):
+@user_router.delete("/logout")
+def logout(request: TokenRequest):
     db = SessionLocal()
-    check_token_expiry(db, request.token)
+    is_token_expiry(db, request.token)
 
     if not is_existing_token(db, request.token):
             raise HTTPException(
@@ -173,9 +173,12 @@ def logout(request: LogoutRequest):
         db.commit()
         return {"out_token": "success"}
     
+    except HTTPException:
+        db.rollback()
+        raise
     except Exception as e:
         db.rollback()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Ошибка сервера: {str(e)}")
     finally:
         db.close()
     

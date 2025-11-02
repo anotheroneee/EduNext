@@ -7,6 +7,7 @@ CREATE TABLE users (
 	surname VARCHAR(50) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
+    is_admin BOOL DEFAULT FALSE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -38,7 +39,6 @@ CREATE TABLE usersprogress (
     user_id INTEGER NOT NULL,
     course_id INTEGER NOT NULL,
     lesson_id INTEGER NOT NULL,
-	time_spent_minutes INTEGER DEFAULT 0,
 	is_completed BOOL DEFAULT FALSE,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
@@ -81,3 +81,7 @@ INSERT INTO lessons (title, description, education_content, duration_minutes, co
 '*ссылка на видео* *ссылка на презентацию*', 40, 3),
 ('Реляционная БД PostgreSQL', 'На уроке вы познакомитесь с реляционной БД PostgreSQL и удобным интерфейсом
 pgAdmin для работы с ней', '*ссылка на видео* *ссылка на презентацию*', 80, 3);
+
+INSERT INTO users (firstname, surname, email, password_hash, is_admin) VALUES
+('admin', 'admin', 'admin@example.com', '$2b$12$1ZCmVbl.EDo1Lxzy1r5ymu1lPfKBz4BxRezPwYL./31dXGPy5G8NW', TRUE),
+('user', 'user', 'user@example.com', '$2b$12$u5isUS5BT8p5PnWK1G0fHOWSUf/jNgdO3b7B6ckjiReH4oK8RDmHW', FALSE)

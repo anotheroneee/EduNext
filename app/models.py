@@ -14,5 +14,6 @@ class LoginRequest(BaseModel):
     email: EmailStr
     password: str
 
-class LogoutRequest(BaseModel):
-    token: str
+class TokenRequest(BaseModel):
+    token: str = None
+
