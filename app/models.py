@@ -15,5 +15,8 @@ class LoginRequest(BaseModel):
     password: str
 
 class TokenRequest(BaseModel):
-    token: str = None
+    token: Optional[str] = None
 
+class EmailTokenRequest(BaseModel):
+    token: Optional[str] = None
+    email: EmailStr

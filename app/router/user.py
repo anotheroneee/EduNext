@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 import secrets
 from fastapi import APIRouter, HTTPException, status
-from app.models import LoginRequest, TokenRequest, RegisterRequest
+from app.models import EmailTokenRequest, LoginRequest, TokenRequest, RegisterRequest
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 import os
@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 import bcrypt
 from jose import jwt
 
-from app.utils import is_token_expiry, hash_token, is_existing_token
+from app.utils import check_token_expiry, get_user_by_email, hash_token, is_admin, is_existing_token
 
 load_dotenv()
 
@@ -157,7 +157,7 @@ def login(request: LoginRequest):
 @user_router.delete("/logout")
 def logout(request: TokenRequest):
     db = SessionLocal()
-    is_token_expiry(db, request.token)
+    check_token_expiry(db, request.token)
 
     if not is_existing_token(db, request.token):
             raise HTTPException(
@@ -181,4 +181,143 @@ def logout(request: TokenRequest):
         raise HTTPException(status_code=500, detail=f"Ошибка сервера: {str(e)}")
     finally:
         db.close()
+
+# Зачисление пользователя на курс
+@user_router.post("/api/user/enroll/{course_id}")
+def enroll_user_to_course(course_id: int, request: EmailTokenRequest):
+    db = SessionLocal()
+    check_token_expiry(db, request.token)
+    if not is_admin(db, request.token):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Ошибка доступа"
+        )
     
+    try:
+        user_id = get_user_by_email(db, request.email)
+        result = db.execute(
+            text("SELECT id FROM usersprogress WHERE user_id = :user_id AND course_id = :course_id"),
+            {"user_id": user_id, "course_id": course_id}
+        ).fetchone()
+
+        if result:
+            raise HTTPException(status_code=400, detail="Пользователь уже зачислен на данный курс")
+        
+        lessons = db.execute(
+            text("SELECT id FROM lessons WHERE course_id = :course_id"),
+            {"course_id": course_id}
+        ).fetchall()
+
+        for lesson in lessons:
+            db.execute(
+                text("""
+                    INSERT INTO usersprogress (user_id, course_id, lesson_id) 
+                    VALUES (:user_id, :course_id, :lesson_id)
+                """),
+                {
+                    "user_id": user_id,
+                    "course_id": course_id,
+                    "lesson_id": lesson.id
+                }
+            )
+        
+        db.commit()
+        return {"status": "success", "message": "Пользователь зачислен на курс"}
+        
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Ошибка сервера: {str(e)}")
+    finally:
+        db.close()
+
+# Отчисление пользователя с курса
+@user_router.delete("/api/user/dismiss/{course_id}")
+def dismiss_user_to_course(course_id: int, request: EmailTokenRequest):
+    db = SessionLocal()
+    check_token_expiry(db, request.token)
+    if not is_admin(db, request.token):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Ошибка доступа"
+        )
+    
+    try:
+        user_id = get_user_by_email(db, request.email)
+        result = db.execute(
+            text("SELECT id FROM usersprogress WHERE user_id = :user_id AND course_id = :course_id"),
+            {"user_id": user_id, "course_id": course_id}
+        ).fetchone()
+
+        if not result:
+            raise HTTPException(status_code=400, detail="Пользователь не зачислен на данный курс")
+        
+        lessons = db.execute(
+            text("SELECT id FROM lessons WHERE course_id = :course_id"),
+            {"course_id": course_id}
+        ).fetchall()
+
+        for lesson in lessons:
+            db.execute(
+                text("""
+                    DELETE FROM usersprogress 
+                    WHERE user_id = :user_id AND course_id = :course_id AND lesson_id = :lesson_id
+                """),
+                {
+                    "user_id": user_id,
+                    "course_id": course_id,
+                    "lesson_id": lesson.id
+                }
+            )
+        
+        db.commit()
+        return {"status": "success", "message": "Пользователь отчислен с курса"}
+        
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Ошибка сервера: {str(e)}")
+    finally:
+        db.close()
+
+# Выдача пользователю прав администратора
+@user_router.put("/api/user/make-admin")
+def dismiss_user_to_course(request: EmailTokenRequest):
+    db = SessionLocal()
+    check_token_expiry(db, request.token)
+    if not is_admin(db, request.token):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Ошибка доступа"
+        )
+    
+    try:
+        user_id = get_user_by_email(db, request.email)
+        result = db.execute(
+            text("SELECT id, firstname, surname FROM users WHERE id = :user_id"),
+            {"user_id": user_id}
+        ).fetchone()
+
+        if not result:
+            raise HTTPException(status_code=400, detail="Пользователь с указанным Email не найден")
+        
+        db.execute(
+            text("UPDATE users SET is_admin = TRUE WHERE id = :user_id"),
+            {"user_id": user_id}
+        )
+
+        db.commit()
+        return {"status": "success", "message": "Пользователь был назначен администратором"}
+        
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Ошибка сервера: {str(e)}")
+    finally:
+        db.close()

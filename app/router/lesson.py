@@ -4,7 +4,7 @@ from sqlalchemy.orm import sessionmaker
 import os
 from dotenv import load_dotenv
 
-from app.utils import is_token_expiry, hash_token, is_existing_token
+from app.utils import check_token_expiry, hash_token, is_existing_token
 
 load_dotenv()
 

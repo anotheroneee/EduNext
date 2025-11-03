@@ -20,7 +20,7 @@ def hash_token(token: str) -> str:
     return hashlib.sha256(token.encode('utf-8')).hexdigest()
 
 # Проверка срока действия токена
-def is_token_expiry(db, token: str) -> bool:
+def check_token_expiry(db, token: str) -> bool:
     result = db.execute(
         text("SELECT id, expires_at FROM personal_access_tokens WHERE token = :token"),
         {"token": hash_token(token)}
@@ -50,6 +50,18 @@ def get_user_by_token(db, token: str) -> int:
 
     if not result:
         raise HTTPException(status_code=401, detail="Токен не найден")
+
+    return result[0]
+
+# Получение user_id по Email
+def get_user_by_email(db, email: str) -> int:
+    result = db.execute(
+        text("SELECT id FROM users WHERE email = :email"),
+        {"email": email}
+    ).fetchone()
+
+    if not result:
+        raise HTTPException(status_code=401, detail="Пользователь с таким Email не найден")
 
     return result[0]
 
