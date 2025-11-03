@@ -20,3 +20,16 @@ class TokenRequest(BaseModel):
 class EmailTokenRequest(BaseModel):
     token: Optional[str] = None
     email: EmailStr
+
+# Course
+class CreateCourseRequest(BaseModel):
+    token: str
+    title: str
+    description: str
+    price: int
+
+class UpdateCourseRequest(BaseModel):
+    token: str
+    title: Optional[str] = None
+    description: Optional[str] = None
+    price: Optional[int] = None

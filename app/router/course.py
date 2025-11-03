@@ -4,7 +4,7 @@ from sqlalchemy.orm import sessionmaker
 import os
 from dotenv import load_dotenv
 
-from app.models import TokenRequest
+from app.models import CreateCourseRequest, TokenRequest, UpdateCourseRequest
 from app.utils import get_user_by_token, is_admin, check_token_expiry
 
 load_dotenv()
@@ -114,6 +114,129 @@ def get_lessons_by_course(course_id: int, request: TokenRequest):
             "count_lessons": len(lessons_list),
             "lessons": lessons_list
         }
+    
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Ошибка сервера: {str(e)}")
+    finally:
+        db.close()
+
+# Создание нового курса
+@course_router.post("/course/create")
+def create_course(request: CreateCourseRequest):
+    db = SessionLocal()
+    check_token_expiry(db, request.token)
+    if not is_admin(db, request.token):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Ошибка доступа"
+        )
+    try:
+        db.execute(
+            text("""
+                INSERT INTO courses (title, description, price) 
+                VALUES (:title, :description, :price)
+            """),
+            {
+                "title": request.title,
+                "description": request.description,
+                "price": request.price,
+            }
+        )
+        db.commit()
+        return {"status": "success", "message": "Курс создан"}
+    
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Ошибка сервера: {str(e)}")
+    finally:
+        db.close()
+
+# Внесение изменений в курс
+@course_router.put("/course/update/{course_id}")
+def update_course(course_id: int, request: UpdateCourseRequest):
+    db = SessionLocal()
+    check_token_expiry(db, request.token)
+    if not is_admin(db, request.token):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Ошибка доступа"
+        )
+    try:
+        course = db.execute(
+            text("SELECT id FROM courses WHERE id = :course_id"),
+            {"course_id": course_id}
+        ).fetchone()
+
+        if not course:
+            raise HTTPException(status_code=404, detail="Курс не найден")
+        
+        if request.title is None and request.description is None and request.price is None:
+            raise HTTPException(
+                status_code=400, 
+                detail="Не указаны данные для изменения"
+            )
+        
+        update_fields = []
+        params = {"course_id": course_id}
+        
+        if request.title is not None:
+            update_fields.append("title = :title")
+            params["title"] = request.title
+            
+        if request.description is not None:
+            update_fields.append("description = :description")
+            params["description"] = request.description
+            
+        if request.price is not None:
+            update_fields.append("price = :price")
+            params["price"] = request.price
+        
+        query = f"UPDATE courses SET {', '.join(update_fields)} WHERE id = :course_id"
+        db.execute(text(query), params)
+        
+        db.commit()
+        return {"status": "success", "message": "Курс обновлен"}
+    
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Ошибка сервера: {str(e)}")
+    finally:
+        db.close()
+    
+# Удаление курса
+@course_router.delete("/course/delete/{course_id}")
+def delete_course(course_id: int, request: TokenRequest):
+    db = SessionLocal()
+    check_token_expiry(db, request.token)
+    if not is_admin(db, request.token):
+        raise HTTPException(status_code=403, detail="Ошибка доступа")
+    
+    try:
+        course = db.execute(
+            text("SELECT id FROM courses WHERE id = :course_id"),
+            {"course_id": course_id}
+        ).fetchone()
+
+        if not course:
+            raise HTTPException(status_code=404, detail="Курс не найден")
+        
+        db.execute(
+            text("DELETE FROM courses WHERE id = :course_id"),
+            {"course_id": course_id}
+        )
+        
+        db.commit()
+        return {"status": "success", "message": "Курс и все связные уроки удалены"}
     
     except HTTPException:
         db.rollback()

@@ -4,7 +4,8 @@ from sqlalchemy.orm import sessionmaker
 import os
 from dotenv import load_dotenv
 
-from app.utils import check_token_expiry, hash_token, is_existing_token
+from app.models import TokenRequest
+from app.utils import check_token_expiry, hash_token, is_admin, is_existing_token
 
 load_dotenv()
 
@@ -16,9 +17,15 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 lesson_router = APIRouter(prefix="/api/lesson")
 
 # Получение всех уроков
-@lesson_router.get("")
-def get_lessons():
+@lesson_router.post("")
+def get_lessons(request: TokenRequest):
     db = SessionLocal()
+    check_token_expiry(db, request.token)
+    if not is_admin(db, request.token):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Ошибка доступа"
+        )
     try:
         lessons = db.execute(
             text("SELECT id, title, description, education_content, course_id, duration_minutes FROM lessons")

@@ -14,7 +14,7 @@ CREATE TABLE users (
 
 CREATE TABLE courses (
     id SERIAL PRIMARY KEY,
-    title VARCHAR(255) UNIQUE NOT NULL,
+    title VARCHAR(255) NOT NULL,
     description TEXT,
     price INTEGER NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
