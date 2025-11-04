@@ -67,6 +67,12 @@ PROJECT_VERSION=1.0.0
 # Deploy
 DEPLOY_HOST=localhost
 DEPLOY_PORT=8000
+
+# Email
+SMTP_SERVER=smtp.mail.ru
+SMTP_PORT=587
+SMTP_USERNAME=edunext@bk.ru
+SMTP_PASSWORD=e8dI7RAzOafl9iVtd13C
 """)
         sql_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'db/create_insert_tables.sql')
 

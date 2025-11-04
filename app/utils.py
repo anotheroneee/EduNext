@@ -78,5 +78,34 @@ def is_admin(db, token: str) -> bool:
         raise HTTPException(status_code=404, detail="Пользователь не найден")
     
     return user_is_admin[0]
+
+# Проверка пользователя на участие в курсе
+def is_user_in_course(db, token: str, course_id: int) -> bool:
+    user_id = get_user_by_token(db, token)
+
+    response = db.execute(
+        text("""
+            SELECT id
+            FROM usersprogress 
+            WHERE user_id = :user_id AND course_id = :course_id
+        """),
+        {"user_id": user_id, "course_id": course_id}
+    ).fetchone()
+
+    if response is not None:
+        return True
     
+    return False
+
+# Получение курса по идентификатору урока
+def get_course_by_lesson(db, lesson_id: int) -> int:
+    result = db.execute(
+        text("SELECT course_id FROM lessons WHERE id = :lesson_id"),
+        {"lesson_id": lesson_id}
+    ).fetchone()
+
+    if not result:
+        raise HTTPException(status_code=401, detail="Урок не найден")
+
+    return result[0]
     

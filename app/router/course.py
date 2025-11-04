@@ -5,7 +5,7 @@ import os
 from dotenv import load_dotenv
 
 from app.models import CreateCourseRequest, TokenRequest, UpdateCourseRequest
-from app.utils import get_user_by_token, is_admin, check_token_expiry
+from app.utils import get_user_by_token, is_admin, check_token_expiry, is_user_in_course
 
 load_dotenv()
 
@@ -14,7 +14,7 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-course_router = APIRouter(prefix="/api/course")
+course_router = APIRouter(prefix="/api/course", tags=["Course API"])
 
 # Получение всех курсов
 @course_router.get("")
@@ -53,26 +53,14 @@ def get_courses():
         db.close()
 
 # Получение уроков в определенном курсе
-@course_router.post("/course/{course_id}/lessons")
+@course_router.post("/{course_id}/lessons")
 def get_lessons_by_course(course_id: int, request: TokenRequest):
     db = SessionLocal()
     full_access = False
     try:
         if (request.token != None):
             check_token_expiry(db, request.token)
-
-            user_id = get_user_by_token(db, request.token)
-
-            response = db.execute(
-                text("""
-                    SELECT id
-                    FROM usersprogress 
-                    WHERE user_id = :user_id AND course_id = :course_id
-                """),
-                {"user_id": user_id, "course_id": course_id}
-            ).fetchone()
-
-            if is_admin(db, request.token) or response is not None:
+            if is_admin(db, request.token) or is_user_in_course(db, request.token, course_id):
                 full_access = True
             
         lessons = db.execute(
@@ -125,7 +113,7 @@ def get_lessons_by_course(course_id: int, request: TokenRequest):
         db.close()
 
 # Создание нового курса
-@course_router.post("/course/create")
+@course_router.post("/create")
 def create_course(request: CreateCourseRequest):
     db = SessionLocal()
     check_token_expiry(db, request.token)
@@ -159,7 +147,7 @@ def create_course(request: CreateCourseRequest):
         db.close()
 
 # Внесение изменений в курс
-@course_router.put("/course/update/{course_id}")
+@course_router.put("/update/{course_id}")
 def update_course(course_id: int, request: UpdateCourseRequest):
     db = SessionLocal()
     check_token_expiry(db, request.token)
@@ -214,7 +202,7 @@ def update_course(course_id: int, request: UpdateCourseRequest):
         db.close()
     
 # Удаление курса
-@course_router.delete("/course/delete/{course_id}")
+@course_router.delete("/delete/{course_id}")
 def delete_course(course_id: int, request: TokenRequest):
     db = SessionLocal()
     check_token_expiry(db, request.token)

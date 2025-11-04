@@ -5,7 +5,7 @@ import os
 from dotenv import load_dotenv
 
 from app.models import CreateLessonRequest, TokenRequest, UpdateLessonRequest
-from app.utils import check_token_expiry, hash_token, is_admin, is_existing_token
+from app.utils import check_token_expiry, get_course_by_lesson, get_user_by_token, hash_token, is_admin, is_existing_token, is_user_in_course
 
 load_dotenv()
 
@@ -14,7 +14,7 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-lesson_router = APIRouter(prefix="/api/lesson")
+lesson_router = APIRouter(prefix="/api/lesson", tags=["Lesson API"])
 
 # Получение всех уроков
 @lesson_router.post("")
@@ -61,7 +61,7 @@ def get_lessons(request: TokenRequest):
         db.close()
 
 # Создание нового урока
-@lesson_router.post("/lesson/create/course/{course_id}")
+@lesson_router.post("/create/course/{course_id}")
 def create_lesson(course_id: int, request: CreateLessonRequest):
     db = SessionLocal()
     check_token_expiry(db, request.token)
@@ -97,7 +97,7 @@ def create_lesson(course_id: int, request: CreateLessonRequest):
         db.close()
 
 # Внесение изменений в урок
-@lesson_router.put("/lesson/update/{lesson_id}")
+@lesson_router.put("/update/{lesson_id}")
 def update_lesson(lesson_id: int, request: UpdateLessonRequest):
     db = SessionLocal()
     check_token_expiry(db, request.token)
@@ -156,7 +156,7 @@ def update_lesson(lesson_id: int, request: UpdateLessonRequest):
         db.close()
     
 # Удаление урока
-@lesson_router.delete("/lesson/delete/{lesson_id}")
+@lesson_router.delete("/delete/{lesson_id}")
 def delete_lesson(lesson_id: int, request: TokenRequest):
     db = SessionLocal()
     check_token_expiry(db, request.token)
@@ -179,6 +179,52 @@ def delete_lesson(lesson_id: int, request: TokenRequest):
         
         db.commit()
         return {"status": "success", "message": "Урок удален"}
+    
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Ошибка сервера: {str(e)}")
+    finally:
+        db.close()
+
+# Отметка урока как пройденного
+@lesson_router.put("/complete/{lesson_id}")
+def complete_lesson(lesson_id: int, request: TokenRequest):
+    db = SessionLocal()
+    check_token_expiry(db, request.token)
+    
+    user_id = get_user_by_token(db, request.token)
+    
+    lesson_result = db.execute(
+        text("SELECT course_id FROM lessons WHERE id = :lesson_id"),
+        {"lesson_id": lesson_id}
+    ).fetchone()
+    
+    if not lesson_result:
+        raise HTTPException(status_code=404, detail="Урок не найден")
+    
+    course_id = lesson_result[0]
+    
+    if not is_user_in_course(db, request.token, course_id):
+        raise HTTPException(status_code=403, detail="Ошибка доступа")
+
+    try:
+        db.execute(
+            text("""
+                UPDATE usersprogress 
+                SET is_completed = TRUE
+                WHERE user_id = :user_id AND lesson_id = :lesson_id
+            """),
+            {
+                "user_id": user_id,
+                "lesson_id": lesson_id
+            }
+        )
+        
+        db.commit()
+        return {"status": "success", "message": "Урок отмечен как завершённый"}
     
     except HTTPException:
         db.rollback()

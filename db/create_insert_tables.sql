@@ -8,6 +8,15 @@ CREATE TABLE users (
     email VARCHAR(255) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     is_admin BOOL DEFAULT FALSE,
+    is_verify BOOL DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE verify_codes (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    code_hash VARCHAR(255) NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -59,13 +68,14 @@ CREATE TABLE personal_access_tokens (
 	FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
---Наполнение таблиц с курсами и уроками
+--Создание курсов
 INSERT INTO courses (title, description, price) VALUES
 ('Python для начинающих', 'Полный курс по основам Python программирования: переменные, условия и циклы, объектно-
 ориентированное программирование', 7000),
 ('Веб-разработка для начинающих', 'Курс по основам веб-разработки: HTML, CSS, SCSS, JS', 5000),
 ('Базы данных и SQL', 'Основы работы с реляционными базами данных. На курсе будет использоваться PostgreSQL', 6000);
 
+--Создание уроков
 INSERT INTO lessons (title, description, education_content, duration_minutes, course_id) VALUES
 ('Введение в Python', 'На уроке вы узнаете интересные факты о языке программирования Python и напишите 
 свою первую программу', '*ссылка на видео* *ссылка на презентацию*', 60, 1),
@@ -82,6 +92,14 @@ INSERT INTO lessons (title, description, education_content, duration_minutes, co
 ('Реляционная БД PostgreSQL', 'На уроке вы познакомитесь с реляционной БД PostgreSQL и удобным интерфейсом
 pgAdmin для работы с ней', '*ссылка на видео* *ссылка на презентацию*', 80, 3);
 
-INSERT INTO users (firstname, surname, email, password_hash, is_admin) VALUES
-('admin', 'admin', 'admin@example.com', '$2b$12$1ZCmVbl.EDo1Lxzy1r5ymu1lPfKBz4BxRezPwYL./31dXGPy5G8NW', TRUE),
-('user', 'user', 'user@example.com', '$2b$12$u5isUS5BT8p5PnWK1G0fHOWSUf/jNgdO3b7B6ckjiReH4oK8RDmHW', FALSE)
+--Создание пользователей
+INSERT INTO users (firstname, surname, email, password_hash, is_admin, is_verify) VALUES
+('admin', 'admin', 'admin@example.com', '$2b$12$1ZCmVbl.EDo1Lxzy1r5ymu1lPfKBz4BxRezPwYL./31dXGPy5G8NW', TRUE, TRUE),
+('user', 'user', 'user@example.com', '$2b$12$u5isUS5BT8p5PnWK1G0fHOWSUf/jNgdO3b7B6ckjiReH4oK8RDmHW', FALSE, TRUE);
+
+--Зачисление user на курсы
+INSERT INTO usersprogress (user_id, course_id, lesson_id) VALUES
+(2, 1, 1),
+(2, 1, 2),
+(2, 3, 5),
+(2, 3, 6);

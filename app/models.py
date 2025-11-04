@@ -21,6 +21,10 @@ class EmailTokenRequest(BaseModel):
     token: Optional[str] = None
     email: EmailStr
 
+class VerifyRequest(BaseModel):
+    code: str
+    email: EmailStr
+
 # Course
 class CreateCourseRequest(BaseModel):
     token: str
