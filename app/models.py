@@ -52,3 +52,7 @@ class UpdateLessonRequest(BaseModel):
     description: Optional[str] = None
     education_content: Optional[str] = None
     duration_minutes: Optional[int] = None
+
+class AskLessonRequest(BaseModel):
+    token: str
+    ask: str

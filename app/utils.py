@@ -1,7 +1,13 @@
 from datetime import datetime, timezone
+import os
+from dotenv import load_dotenv
 from fastapi import HTTPException
+import gigachat
 from sqlalchemy import text
+from gigachat import GigaChat
 import hashlib
+
+load_dotenv()
 
 # Проверка существования токена
 def is_existing_token(db, token: str) -> bool:
@@ -108,4 +114,19 @@ def get_course_by_lesson(db, lesson_id: int) -> int:
         raise HTTPException(status_code=401, detail="Урок не найден")
 
     return result[0]
-    
+
+# Запрос к нейросети GigaChat
+def query_ai(prompt: str):
+    try:
+        token = os.getenv("GIGACHAT_AUTHORIZATION_KEY")
+        giga = gigachat.GigaChat(
+            credentials=token,
+            verify_ssl_certs=False,
+            scope="GIGACHAT_API_PERS"
+        )
+        
+        response = giga.chat(prompt)
+        return response.choices[0].message.content
+        
+    except Exception as e:
+        return f"Ошибка: {str(e)}"

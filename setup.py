@@ -73,6 +73,9 @@ SMTP_SERVER=smtp.mail.ru
 SMTP_PORT=587
 SMTP_USERNAME=edunext@bk.ru
 SMTP_PASSWORD=e8dI7RAzOafl9iVtd13C
+
+# GigaChat
+GIGACHAT_AUTHORIZATION_KEY=ZTBhODkxM2MtMzhmZS00MmQ5LWIzZDctZjhmNWM0NGY4Mjk1OmQ5ZWEzNjQwLTUwMmUtNDczZC1iMTY4LTljYjhkZjk4NGE4OA==
 """)
         sql_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'db/create_insert_tables.sql')
 

@@ -4,8 +4,8 @@ from sqlalchemy.orm import sessionmaker
 import os
 from dotenv import load_dotenv
 
-from app.models import CreateLessonRequest, TokenRequest, UpdateLessonRequest
-from app.utils import check_token_expiry, get_course_by_lesson, get_user_by_token, hash_token, is_admin, is_existing_token, is_user_in_course
+from app.models import AskLessonRequest, CreateLessonRequest, TokenRequest, UpdateLessonRequest
+from app.utils import check_token_expiry, get_course_by_lesson, get_user_by_token, hash_token, is_admin, is_existing_token, is_user_in_course, query_ai
 
 load_dotenv()
 
@@ -225,6 +225,58 @@ def complete_lesson(lesson_id: int, request: TokenRequest):
         
         db.commit()
         return {"status": "success", "message": "Урок отмечен как завершённый"}
+    
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Ошибка сервера: {str(e)}")
+    finally:
+        db.close()
+
+# Запрос к нейросети с вопросом по уроку
+@lesson_router.post("/{lesson_id}/ask")
+def ask_question(lesson_id: int, request: AskLessonRequest):
+    db = SessionLocal()
+    check_token_expiry(db, request.token)
+    
+    lesson_result = db.execute(
+        text("SELECT * FROM lessons WHERE id = :lesson_id"),
+        {"lesson_id": lesson_id}
+    ).fetchone()
+    
+    if not lesson_result:
+        raise HTTPException(status_code=404, detail="Урок не найден")
+
+    if not is_user_in_course(db, request.token, lesson_result.course_id) and not is_admin(db, request.token):
+        raise HTTPException(status_code=403, detail="Ошибка доступа")
+
+    try:
+        prompt = f"""Ты - AI-репетитор. 
+
+            Контекст урока:
+            1) Название урока: {lesson_result.title}
+            2) Описание урока: {lesson_result.description}  
+            3) Обучающий контент: {lesson_result.education_content}
+
+            Вопрос студента: {request.ask}
+
+            Требования к ответу:
+            - ОТВЕЧАЙ ТОЛЬКО ОБЫЧНЫМ ТЕКСТОМ БЕЗ ФОРМАТИРОВАНИЯ
+            - ЗАПРЕЩЕНО: Markdown, backticks ``, звездочки **, подчеркивания __
+            - ЗАПРЕЩЕНО: отдельные блоки для кода
+            - ЗАПРЕЩЕНО: символы ``` в любом виде
+            - Для примеров кода пиши: функция print("текст") в строку
+            - Используй обычные пробелы между словами
+            - Пиши как обычное сообщение в чате
+
+            Дай развернутый, но четкий ответ, основанный на предоставленном контексте. Если ответа в контексте нет, так и скажи."""
+        
+        response = query_ai(prompt)
+
+        db.commit()
+        return {"status": "success", "responseai": response}
     
     except HTTPException:
         db.rollback()

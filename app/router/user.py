@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 import bcrypt
 from jose import jwt
 from email.mime.text import MIMEText
+import hashlib
 
 from app.utils import check_token_expiry, get_user_by_email, hash_token, is_admin, is_existing_token
 
