@@ -1,11 +1,14 @@
 from datetime import datetime, timezone
+import json
 import os
+import re
 from dotenv import load_dotenv
 from fastapi import HTTPException
 import gigachat
 from sqlalchemy import text
 from gigachat import GigaChat
 import hashlib
+from json_repair import repair_json
 
 load_dotenv()
 

@@ -1,3 +1,4 @@
+import re
 from fastapi import APIRouter, HTTPException, status
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
@@ -254,29 +255,106 @@ def ask_question(lesson_id: int, request: AskLessonRequest):
 
     try:
         prompt = f"""Ты - AI-репетитор. 
-
             Контекст урока:
             1) Название урока: {lesson_result.title}
             2) Описание урока: {lesson_result.description}  
             3) Обучающий контент: {lesson_result.education_content}
-
             Вопрос студента: {request.ask}
-
-            Требования к ответу:
-            - ОТВЕЧАЙ ТОЛЬКО ОБЫЧНЫМ ТЕКСТОМ БЕЗ ФОРМАТИРОВАНИЯ
-            - ЗАПРЕЩЕНО: Markdown, backticks ``, звездочки **, подчеркивания __
-            - ЗАПРЕЩЕНО: отдельные блоки для кода
-            - ЗАПРЕЩЕНО: символы ``` в любом виде
-            - Для примеров кода пиши: функция print("текст") в строку
-            - Используй обычные пробелы между словами
-            - Пиши как обычное сообщение в чате
-
-            Дай развернутый, но четкий ответ, основанный на предоставленном контексте. Если ответа в контексте нет, так и скажи."""
+            Дай развернутый, но четкий ответ, основанный на предоставленном контексте. Если ответа в контексте нет, так и скажи.
+            Ответ предоставь в виде чистого текста, без использования спец. символов и разметки MarkDown!
+            Код пиши строго строкой/строками в предложении, а не в отдельных окнах!!!"""
         
         response = query_ai(prompt)
 
         db.commit()
         return {"status": "success", "responseai": response}
+    
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Ошибка сервера: {str(e)}")
+    finally:
+        db.close()
+    
+# Запрос к нейросети с генерацией вопроса по уроку
+@lesson_router.post("/{lesson_id}/generate-task")
+def generate_task(lesson_id: int, request: TokenRequest):
+    db = SessionLocal()
+    check_token_expiry(db, request.token)
+    
+    lesson_result = db.execute(
+        text("SELECT * FROM lessons WHERE id = :lesson_id"),
+        {"lesson_id": lesson_id}
+    ).fetchone()
+    
+    if not lesson_result:
+        raise HTTPException(status_code=404, detail="Урок не найден")
+
+    if not is_user_in_course(db, request.token, lesson_result.course_id) and not is_admin(db, request.token):
+        raise HTTPException(status_code=403, detail="Ошибка доступа")
+
+    try:
+        prompt = f"""
+            Сгенерируй одну практическую задачу по уроку:
+            1) Название урока: {lesson_result.title}
+            2) Описание урока: {lesson_result.description}
+            3) Обучающий контент: {lesson_result.education_content}
+            
+            Задача должна быть уникальной и проверять понимание ключевых концепций.
+            Уровень сложности - начальный. Предоставь эталонное решение для проверки.
+
+            Твой ответ должен СТРОГО соответствовать шаблону:
+            Задача: [текст задачи]
+            Эталонное решение: [решение задачи]
+
+            ЗАПРЕЩЕНО использовать Markdown, обратные кавычки ```, символы форматирования!
+            Решение должно быть написано обычным текстом в одну строку!"""
+
+        response = query_ai(prompt)
+
+        def clean_markdown(text):
+            text = re.sub(r'```[a-z]*\n?', '', text)
+            text = text.replace('```', '')
+            text = text.replace('**', '').replace('*', '').replace('_', '')
+            text = re.sub(r'\n+', ' ', text)
+            return text.strip()
+
+        clean_response = clean_markdown(response)
+
+        if 'Эталонное решение:' in clean_response:
+            parts = clean_response.split('Эталонное решение:', 1)
+            task = parts[0].replace('Задача:', '').strip()
+            answer_right = parts[1].strip()
+        elif 'эталонное решение:' in clean_response:
+            parts = clean_response.split('эталонное решение:', 1)
+            task = parts[0].replace('Задача:', '').strip()
+            answer_right = parts[1].strip()
+        else:
+            task = clean_response.strip()
+            answer_right = ""
+
+        user_id = get_user_by_token(db, request.token)
+        
+        db.execute(
+            text("""
+                INSERT INTO tasks (user_id, lesson_id, task, answer_right) 
+                VALUES (:user_id, :lesson_id, :task, :answer_right)
+            """),
+            {
+                "user_id": user_id,
+                "lesson_id": lesson_id,
+                "task": task,
+                "answer_right": answer_right,
+            }
+        )
+
+        db.commit()
+        return {
+            "status": "success", 
+            "task": task,
+        }
     
     except HTTPException:
         db.rollback()

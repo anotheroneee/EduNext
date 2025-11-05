@@ -15,16 +15,18 @@ CREATE TABLE users (
 
 CREATE TABLE verify_codes (
     id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL UNIQUE,
     code_hash VARCHAR(255) NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW()
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );
 
 CREATE TABLE courses (
     id SERIAL PRIMARY KEY,
-    title VARCHAR(255) NOT NULL,
-    description TEXT,
+    title TEXT NOT NULL,
+    description TEXT NOT NULL,
     price INTEGER NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
@@ -32,8 +34,8 @@ CREATE TABLE courses (
 
 CREATE TABLE lessons (
     id SERIAL PRIMARY KEY,
-    title VARCHAR(255) NOT NULL,
-    description TEXT,
+    title TEXT NOT NULL,
+    description TEXT NOT NULL,
 	education_content TEXT NOT NULL,
 	course_id INTEGER NOT NULL,
 	duration_minutes INTEGER NOT NULL,
@@ -64,6 +66,21 @@ CREATE TABLE personal_access_tokens (
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW(),
     expires_at TIMESTAMPTZ,
+
+	FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE tasks (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    lesson_id INTEGER NOT NULL,
+    task TEXT NOT NULL,
+    answer_right TEXT NOT NULL,
+    answer_user TEXT DEFAULT 'Ответ на задачу отсутствует',
+    is_answer_right BOOL DEFAULT FALSE,
+
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
 
 	FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 );

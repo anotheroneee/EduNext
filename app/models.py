@@ -56,3 +56,8 @@ class UpdateLessonRequest(BaseModel):
 class AskLessonRequest(BaseModel):
     token: str
     ask: str
+
+# Task
+class CheckTaskRequest(BaseModel):
+    token: str
+    answer: str
