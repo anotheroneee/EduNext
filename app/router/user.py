@@ -114,7 +114,19 @@ def register(request: RegisterRequest):
             text("SELECT id FROM users WHERE email = :email"),
             {"email": request.email}
         ).fetchone()
+
         user_id = result[0]
+
+        db.execute(
+            text("""
+                INSERT INTO usersprogress_stats (user_id) 
+                VALUES (:user_id)
+            """),
+            {
+                "user_id": user_id
+            }
+        )
+
         send_verify_code_to_email(db, user_id, request.email)
 
         db.commit()

@@ -6,7 +6,7 @@ import os
 from dotenv import load_dotenv
 
 from app.models import AskLessonRequest, CreateLessonRequest, TokenRequest, UpdateLessonRequest
-from app.utils import check_token_expiry, get_course_by_lesson, get_user_by_token, hash_token, is_admin, is_existing_token, is_user_in_course, query_ai
+from app.utils import check_token_expiry, get_course_by_lesson, get_user_by_token, hash_token, is_admin, is_existing_token, is_user_in_course, process_achievement_event, query_ai
 
 load_dotenv()
 
@@ -22,15 +22,24 @@ lesson_router = APIRouter(prefix="/api/lesson", tags=["Lesson API"])
 def get_lessons(request: TokenRequest):
     db = SessionLocal()
     check_token_expiry(db, request.token)
-    if not is_admin(db, request.token):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Ошибка доступа"
-        )
+    
     try:
-        lessons = db.execute(
-            text("SELECT id, title, description, education_content, course_id, duration_minutes FROM lessons")
-        ).fetchall()
+        user_id = get_user_by_token(db, request.token)
+        
+        if is_admin(db, request.token):
+            lessons = db.execute(
+                text("SELECT id, title, description, education_content, course_id, duration_minutes FROM lessons")
+            ).fetchall()
+        else:
+            lessons = db.execute(
+                text("""
+                    SELECT DISTINCT l.id, l.title, l.description, l.education_content, l.course_id, l.duration_minutes 
+                    FROM lessons l
+                    INNER JOIN usersprogress up ON l.id = up.lesson_id
+                    WHERE up.user_id = :user_id
+                """),
+                {"user_id": user_id}
+            ).fetchall()
         
         if not lessons:
             raise HTTPException(status_code=404, detail="Уроки не найдены")
@@ -223,6 +232,30 @@ def complete_lesson(lesson_id: int, request: TokenRequest):
                 "lesson_id": lesson_id
             }
         )
+
+        process_achievement_event(db, "lesson_complete", user_id)
+
+        total_lessons = db.execute(
+            text("SELECT COUNT(*) FROM lessons WHERE course_id = :course_id"),
+            {"course_id": course_id}
+        ).fetchone()[0]
+        
+        completed_lessons = db.execute(
+            text("""
+                SELECT COUNT(*) 
+                FROM usersprogress 
+                WHERE user_id = :user_id 
+                AND course_id = :course_id 
+                AND is_completed = TRUE
+            """),
+            {
+                "user_id": user_id,
+                "course_id": course_id
+            }
+        ).fetchone()[0]
+        
+        if completed_lessons >= total_lessons:
+            process_achievement_event(db, "course_complete", user_id)
         
         db.commit()
         return {"status": "success", "message": "Урок отмечен как завершённый"}

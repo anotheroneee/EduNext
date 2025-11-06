@@ -6,7 +6,7 @@ import os
 from dotenv import load_dotenv
 
 from app.models import CheckTaskRequest, TokenRequest
-from app.utils import check_token_expiry, get_user_by_token, is_admin, query_ai
+from app.utils import check_token_expiry, get_user_by_token, is_admin, process_achievement_event, query_ai
 
 load_dotenv()
 
@@ -134,6 +134,8 @@ def check_task(task_id: int, request: CheckTaskRequest):
                 "user_id": user_id
             }
         )
+
+        process_achievement_event(db, "task_completed", user_id, is_correct)
         
         db.commit()
         return {
