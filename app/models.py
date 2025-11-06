@@ -25,6 +25,11 @@ class VerifyRequest(BaseModel):
     code: str
     email: EmailStr
 
+class ChangePasswordRequest(BaseModel):
+    token: str
+    current_password: str
+    new_password: str
+
 # Course
 class CreateCourseRequest(BaseModel):
     token: str

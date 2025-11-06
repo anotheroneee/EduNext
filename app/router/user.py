@@ -3,7 +3,7 @@ import random
 import secrets
 import smtplib
 from fastapi import APIRouter, HTTPException, status
-from app.models import EmailTokenRequest, LoginRequest, TokenRequest, RegisterRequest, VerifyRequest
+from app.models import ChangePasswordRequest, EmailTokenRequest, LoginRequest, TokenRequest, RegisterRequest, VerifyRequest
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 import os
@@ -13,7 +13,7 @@ from jose import jwt
 from email.mime.text import MIMEText
 import hashlib
 
-from app.utils import check_token_expiry, get_user_by_email, hash_token, is_admin, is_existing_token
+from app.utils import check_token_expiry, get_user_by_email, get_user_by_token, hash_token, is_admin, is_existing_token
 
 load_dotenv()
 
@@ -429,6 +429,124 @@ def dismiss_user_to_course(request: EmailTokenRequest):
 
         db.commit()
         return {"status": "success", "message": "Пользователь был назначен администратором"}
+        
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Ошибка сервера: {str(e)}")
+    finally:
+        db.close()
+
+# Получение всех достижений пользователя
+@user_router.post("/badges-list")
+def get_badges(request: TokenRequest):
+    db = SessionLocal()
+    check_token_expiry(db, request.token)
+    user_id = get_user_by_token(db, request.token)
+    
+    try:
+        badges = db.execute(
+            text("""
+                SELECT b.id, b.name, b.description
+                FROM user_badges ub
+                JOIN badges b ON ub.badge_id = b.id
+                WHERE ub.user_id = :user_id
+                ORDER BY ub.created_at DESC
+            """),
+            {"user_id": user_id}
+        ).fetchall()
+        
+        if not badges:
+            raise HTTPException(status_code=404, detail="Достижения не найдены")
+        
+        badges_list = []
+        for badge in badges:
+            badges_list.append({
+                "id": badge.id,
+                "name": badge.name,
+                "description": badge.description
+            })
+        
+        return {
+            "status": "success",
+            "count_badges": len(badges_list),
+            "badges": badges_list
+        }
+        
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Ошибка сервера: {str(e)}")
+    finally:
+        db.close()
+
+# Получение статистики пользователя
+@user_router.post("/stats")
+def get_stats(request: TokenRequest):
+    db = SessionLocal()
+    check_token_expiry(db, request.token)
+    user_id = get_user_by_token(db, request.token)
+
+    try:
+        stats = db.execute(
+            text("SELECT * FROM usersprogress_stats WHERE user_id = :user_id"), {"user_id": user_id}
+        ).fetchone()
+        
+        if not stats:
+            raise HTTPException(status_code=404, detail="Пользователь не найден")
+        
+        return {
+            "status": "success",
+            "lesson_complete": stats.lesson_complete,
+            "course_complete": stats.course_complete,
+            "tasks_streak": stats.tasks_streak,
+            "max_streak": stats.max_streak
+        }
+        
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Ошибка сервера: {str(e)}")
+    finally:
+        db.close()
+
+# Изменение пароля
+@user_router.put("/change-password")
+def change_password(request: ChangePasswordRequest):
+    db = SessionLocal()
+    check_token_expiry(db, request.token)
+    user_id = get_user_by_token(db, request.token)
+    
+    try:
+        user = db.execute(
+            text("SELECT password_hash FROM users WHERE id = :user_id"),
+            {"user_id": user_id}
+        ).fetchone()
+        
+        if not user:
+            raise HTTPException(status_code=404, detail="Пользователь не найден")
+        
+        if not verify_text_hash(request.current_password, user.password_hash):
+            raise HTTPException(status_code=400, detail="Неверный текущий пароль")
+        
+        new_password_hash = get_text_hash(request.new_password)
+        
+        db.execute(
+            text("UPDATE users SET password_hash = :password_hash WHERE id = :user_id"),
+            {
+                "password_hash": new_password_hash,
+                "user_id": user_id
+            }
+        )
+        
+        db.commit()
+        return {"status": "success", "message": "Пароль успешно изменен"}
         
     except HTTPException:
         db.rollback()
