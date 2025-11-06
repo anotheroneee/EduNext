@@ -55,7 +55,7 @@ def setup_postgres():
 DATABASE_URL=postgresql://{db_user}:{db_password}@localhost:5432/{db_name}
 
 # Security Project
-SECRET_KEY=eb3becaabc178fdf9e7980ed2db155e3
+SECRET_KEY=
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=4320
 MAX_COUNT_ACCESS_TOKENS=3
@@ -72,10 +72,10 @@ DEPLOY_PORT=8000
 SMTP_SERVER=smtp.mail.ru
 SMTP_PORT=587
 SMTP_USERNAME=edunext@bk.ru
-SMTP_PASSWORD=e8dI7RAzOafl9iVtd13C
+SMTP_PASSWORD=
 
 # GigaChat
-GIGACHAT_AUTHORIZATION_KEY=ZTBhODkxM2MtMzhmZS00MmQ5LWIzZDctZjhmNWM0NGY4Mjk1OmQ5ZWEzNjQwLTUwMmUtNDczZC1iMTY4LTljYjhkZjk4NGE4OA==
+GIGACHAT_AUTHORIZATION_KEY=
 """)
         sql_file_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'db/create_insert_tables.sql')
 
