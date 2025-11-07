@@ -49,35 +49,41 @@ def send_verify_code_to_email(db, user_id: int, email: str):
     code = random.randint(100000, 999999)
     
     subject = "Подтверждение email"
-
     message = f"""Код подтверждения: {code}"""
 
-    msg = MIMEText(message)
-    msg['Subject'] = subject
-    msg['From'] = smtp_username
-    msg['To'] = email
-    
-    server = smtplib.SMTP(smtp_server, smtp_port)
-    server.starttls()
-    server.login(smtp_username, smtp_password)
-    server.send_message(msg)
-    server.quit()
+    try:
+        db.execute(
+            text("DELETE FROM verify_codes WHERE user_id = :user_id"),
+            {"user_id": user_id}
+        )
 
-    db.execute(
-        text("DELETE FROM verify_codes WHERE user_id = :user_id"),
-        {"user_id": user_id}
-    )
+        db.execute(
+            text("""
+                INSERT INTO verify_codes (user_id, code_hash) 
+                VALUES (:user_id, :code)
+            """),
+            {
+                "user_id": user_id,
+                "code": get_text_hash(str(code))
+            }
+        )
+        
+        db.commit()
 
-    db.execute(
-        text("""
-            INSERT INTO verify_codes (user_id, code_hash) 
-            VALUES (:user_id, :code)
-        """),
-        {
-            "user_id": user_id,
-            "code": get_text_hash(str(code))
-        }
-    )
+        msg = MIMEText(message)
+        msg['Subject'] = subject
+        msg['From'] = smtp_username
+        msg['To'] = email
+        
+        server = smtplib.SMTP(smtp_server, smtp_port)
+        server.starttls()
+        server.login(smtp_username, smtp_password)
+        server.send_message(msg)
+        server.quit()
+        
+    except Exception as e:
+        db.rollback()
+        raise Exception(f"Ошибка отправки кода подтверждения: {str(e)}")
 
 
 user_router = APIRouter(prefix="/api/user", tags=["User API"])
